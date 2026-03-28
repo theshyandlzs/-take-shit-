@@ -9,6 +9,11 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", environment: process.env.NODE_ENV || 'development' });
+  });
+
   // API Proxy for AI Analysis to avoid CORS issues
   app.post("/api/analyze", async (req, res) => {
     console.log("Received AI analysis request for provider:", req.body?.provider?.type);
@@ -35,22 +40,26 @@ async function startServer() {
         const base64Data = base64Image.split(',')[1] || base64Image;
         const buffer = Buffer.from(base64Data, 'base64');
         
-        // Create a File object from the buffer
-        const file = new File([buffer], 'image.jpg', { type: 'image/jpeg' });
+        // In Node.js, we can use a Buffer with a filename for the file upload
+        // The OpenAI SDK handles this correctly
+        const file = await OpenAI.toFile(buffer, 'image.jpg', { type: 'image/jpeg' });
         
         // 1. Upload the file
+        console.log("Uploading file to Moonshot...");
         const fileObject = await client.files.create({
           file: file,
           purpose: "file-extract"
         });
-        console.log("File uploaded, ID:", fileObject.id);
+        console.log("File uploaded successfully, ID:", fileObject.id);
 
         // 2. Get extracted content
+        console.log("Retrieving extracted content for file:", fileObject.id);
         const fileContentResponse = await client.files.content(fileObject.id);
         const fileContent = await fileContentResponse.text();
         console.log("Extracted content length:", fileContent.length);
 
         // 3. Call chat completion with extracted content
+        console.log("Calling chat completions with extracted content...");
         const response = await client.chat.completions.create({
           model: provider.model,
           messages: [
