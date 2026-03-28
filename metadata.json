@@ -1,0 +1,7 @@
+{
+  "name": "今天拉了吗 - 肠道健康追踪",
+  "description": "一个专业的肠道健康管理应用，提供记录、AI分析、健康建议和科普知识。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
