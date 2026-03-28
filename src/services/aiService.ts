@@ -7,18 +7,20 @@ export async function analyzeStoolImage(base64Image: string, provider: ApiProvid
     Analyze this stool image for health purposes. 
     Provide a detailed assessment including:
     1. Overall health status (e.g., "Healthy", "Needs Attention").
-    2. Confidence level (0-100).
+    2. Confidence level (0-1).
     3. Key observations (texture, signs of fermentation, etc.).
     4. Personalized advice (dietary, hydration).
     5. Biological breakdown metrics (transit speed, hydration, fiber match).
     
+    IMPORTANT: All text content (status, observations, advice, metrics labels) MUST be in Chinese.
+    
     Return the result in JSON format matching this structure:
     {
-      "status": "string",
+      "status": "string (in Chinese)",
       "confidence": number,
-      "observations": [{"title": "string", "description": "string", "type": "positive|neutral|negative"}],
-      "advice": [{"category": "string", "content": "string"}],
-      "metrics": [{"label": "string", "value": number, "status": "string"}]
+      "observations": [{"title": "string (in Chinese)", "description": "string (in Chinese)", "type": "positive|neutral|negative"}],
+      "advice": [{"category": "string (in Chinese)", "content": "string (in Chinese)"}],
+      "metrics": [{"label": "string (in Chinese)", "value": number, "status": "string (in Chinese)"}]
     }
   `;
 
