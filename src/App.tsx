@@ -40,8 +40,9 @@ import {
   Wind,
   Lightbulb
 } from 'lucide-react';
-import { Screen, StoolRecord, AnalysisResult } from './types';
-import { analyzeStoolImage } from './services/geminiService';
+import { Screen, StoolRecord, AnalysisResult, ApiProvider, ProviderType } from './types';
+import { analyzeStoolImage } from './services/aiService';
+import { Plus, Trash2, Check, ExternalLink } from 'lucide-react';
 
 // --- Components ---
 
@@ -781,7 +782,7 @@ const ReportScreen = ({ records }: { records: StoolRecord[] }) => {
   );
 };
 
-const ProfileScreen = ({ records }: { records: StoolRecord[] }) => {
+const ProfileScreen = ({ records, onOpenApiSettings }: { records: StoolRecord[], onOpenApiSettings: () => void }) => {
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -827,8 +828,13 @@ const ProfileScreen = ({ records }: { records: StoolRecord[] }) => {
             { icon: BookOpen, label: '记录偏好', bg: 'bg-primary-container/50', color: 'text-primary' },
             { icon: Zap, label: '健康偏好', bg: 'bg-tertiary-container/30', color: 'text-tertiary' },
             { icon: ShieldCheck, label: '数据与隐私', bg: 'bg-surface-container-high', color: 'text-on-surface-variant' },
+            { icon: Settings, label: 'API 设置', bg: 'bg-primary-container/20', color: 'text-primary', onClick: onOpenApiSettings },
           ].map((item, i) => (
-            <button key={i} className="w-full flex items-center justify-between px-6 py-5 hover:bg-surface-container transition-colors border-b border-outline-variant/10 last:border-none">
+            <button 
+              key={i} 
+              onClick={item.onClick}
+              className="w-full flex items-center justify-between px-6 py-5 hover:bg-surface-container transition-colors border-b border-outline-variant/10 last:border-none"
+            >
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-full ${item.bg} flex items-center justify-center ${item.color}`}>
                   <item.icon size={24} />
@@ -979,9 +985,42 @@ export default function App() {
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [showApiModal, setShowApiModal] = useState(false);
+  const [providers, setProviders] = useState<ApiProvider[]>(() => {
+    const saved = localStorage.getItem('gut_health_providers');
+    if (saved) return JSON.parse(saved);
+    
+    // Default Gemini provider if none exists
+    return [{
+      id: 'default-gemini',
+      name: 'Google Gemini (Default)',
+      type: 'Gemini',
+      baseUrl: '',
+      apiKey: process.env.GEMINI_API_KEY || '',
+      model: 'gemini-3.1-flash-lite-preview',
+      isActive: true
+    }];
+  });
+  const [activeProviderId, setActiveProviderId] = useState<string>(() => {
+    const saved = localStorage.getItem('gut_health_active_provider_id');
+    return saved || 'default-gemini';
+  });
+
+  const [isAddingProvider, setIsAddingProvider] = useState(false);
+  const [newProvider, setNewProvider] = useState<Partial<ApiProvider>>({
+    type: 'Gemini',
+    name: '',
+    baseUrl: '',
+    apiKey: '',
+    model: 'gemini-3.1-flash-lite-preview'
+  });
 
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY) {
+    localStorage.setItem('gut_health_providers', JSON.stringify(providers));
+    localStorage.setItem('gut_health_active_provider_id', activeProviderId);
+  }, [providers, activeProviderId]);
+
+  useEffect(() => {
+    if (providers.length === 1 && !providers[0].apiKey && !process.env.GEMINI_API_KEY) {
       setShowApiModal(true);
     }
   }, []);
@@ -996,13 +1035,19 @@ export default function App() {
   };
 
   const handleAnalyze = async (image: string) => {
+    const activeProvider = providers.find(p => p.id === activeProviderId) || providers[0];
+    if (!activeProvider || !activeProvider.apiKey) {
+      setShowApiModal(true);
+      return;
+    }
+
     try {
-      const result = await analyzeStoolImage(image);
+      const result = await analyzeStoolImage(image, activeProvider);
       setAnalysisResult(result);
       setScreen('analysis');
     } catch (error) {
       console.error("Analysis failed:", error);
-      alert("AI 分析失败，请检查网络或 API Key 设置。");
+      alert("AI 分析失败，请检查网络或 API 设置。");
     }
   };
 
@@ -1016,7 +1061,7 @@ export default function App() {
       case 'record': return <RecordScreen onFinish={handleFinishRecord} onAnalyze={handleAnalyze} />;
       case 'academy': return <AcademyScreen />;
       case 'report': return <ReportScreen records={records} />;
-      case 'profile': return <ProfileScreen records={records} />;
+      case 'profile': return <ProfileScreen records={records} onOpenApiSettings={() => setShowApiModal(true)} />;
       case 'analysis': return <AnalysisScreen result={analysisResult} onFinish={() => setScreen('home')} />;
       default: return <HomeScreen records={records} onStartRecord={() => setScreen('record')} onDeleteRecord={handleDeleteRecord} />;
     }
@@ -1060,75 +1105,268 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-on-background/20 backdrop-blur-sm"
-              onClick={() => setShowApiModal(false)}
+              className="absolute inset-0 bg-on-background/40 backdrop-blur-md"
+              onClick={() => {
+                if (!isAddingProvider) setShowApiModal(false);
+              }}
             />
             <motion.main 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white/80 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col items-center border border-white/20"
+              className="relative w-full max-w-2xl bg-white rounded-[2rem] overflow-hidden shadow-2xl flex flex-col border border-outline-variant/20 max-h-[90vh]"
             >
-              <div className="w-full h-48 relative bg-primary-container/20 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full flex items-center justify-center">
-                  <div className="relative w-32 h-32 bg-white rounded-full shadow-xl flex items-center justify-center animate-pulse">
-                    <Zap size={48} className="text-primary" />
+              {!isAddingProvider ? (
+                <>
+                  <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-lowest">
+                    <div>
+                      <h1 className="font-sans font-black text-2xl text-primary tracking-tight">
+                        API Providers
+                      </h1>
+                      <p className="text-on-surface-variant text-sm mt-1">
+                        Manage API providers for AI analysis. The active provider will be used for all sessions.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setNewProvider({
+                          type: 'Gemini',
+                          name: '',
+                          baseUrl: '',
+                          apiKey: '',
+                          model: 'gemini-3.1-flash-lite-preview'
+                        });
+                        setIsAddingProvider(true);
+                      }}
+                      className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full font-bold text-sm shadow-sm hover:bg-primary/90 transition-colors"
+                    >
+                      <Plus size={18} />
+                      Add Provider
+                    </button>
                   </div>
-                </div>
-                <button 
-                  onClick={() => setShowApiModal(false)}
-                  className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/50 backdrop-blur-md flex items-center justify-center text-on-surface-variant hover:bg-white transition-colors"
-                >
-                  <AlertCircle size={20} />
-                </button>
-              </div>
 
-              <div className="w-full px-8 pb-12 pt-10 flex flex-col items-center text-center">
-                <h1 className="font-sans font-black text-3xl text-primary tracking-tight mb-4">
-                  API 设置 (API Setup)
-                </h1>
-                <p className="text-on-surface-variant text-sm max-w-md mb-10 leading-relaxed font-medium">
-                  Enter your API Key to enable AI analysis features. Your key is encrypted and stored securely on your device.
-                </p>
-
-                <div className="w-full max-w-sm space-y-6">
-                  <div className="flex flex-col items-start w-full">
-                    <label className="font-sans font-bold text-sm text-primary mb-2 ml-4">API Key</label>
-                    <div className="relative w-full">
-                      <input 
-                        className="w-full h-16 px-6 rounded-full bg-surface-container-low border-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all duration-300 text-lg"
-                        placeholder="sk-••••••••••••••••••••••••"
-                        type="password"
-                      />
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
-                        <Settings size={20} />
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-surface-container-low/30">
+                    {providers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                        <div className="w-20 h-20 bg-surface-container-high rounded-3xl flex items-center justify-center text-outline-variant">
+                          <Settings size={40} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-on-surface">No providers configured</p>
+                          <p className="text-sm text-on-surface-variant">Add a provider to use AI analysis features.</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-2 pt-4">
+                          {['Gemini', 'Moonshot', 'OpenAI', 'Custom'].map(type => (
+                            <button 
+                              key={type}
+                              onClick={() => {
+                                let defaultModel = 'gemini-3.1-flash-lite-preview';
+                                let defaultBaseUrl = '';
+                                if (type === 'Moonshot') {
+                                  defaultModel = 'kimi-k2.5';
+                                  defaultBaseUrl = 'https://api.moonshot.cn/v1';
+                                } else if (type === 'OpenAI') {
+                                  defaultModel = 'gpt-4o-mini';
+                                  defaultBaseUrl = 'https://api.openai.com/v1';
+                                }
+                                setNewProvider({ type: type as ProviderType, name: `${type} Provider`, model: defaultModel, baseUrl: defaultBaseUrl, apiKey: '' });
+                                setIsAddingProvider(true);
+                              }}
+                              className="px-3 py-1.5 rounded-full border border-outline-variant text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors flex items-center gap-1"
+                            >
+                              <Plus size={12} />
+                              {type}
+                            </button>
+                          ))}
+                        </div>
                       </div>
+                    ) : (
+                      providers.map(provider => (
+                        <div 
+                          key={provider.id}
+                          className={`p-5 rounded-3xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                            activeProviderId === provider.id 
+                              ? 'border-primary bg-primary/5 shadow-md' 
+                              : 'border-outline-variant/30 bg-white hover:border-primary/50'
+                          }`}
+                          onClick={() => setActiveProviderId(provider.id)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                              activeProviderId === provider.id ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-primary'
+                            }`}>
+                              {provider.type === 'Gemini' ? <Zap size={24} /> : <BookOpen size={24} />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-on-surface">{provider.name}</h3>
+                                {activeProviderId === provider.id && (
+                                  <span className="bg-primary/10 text-primary text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Active</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-on-surface-variant font-medium">
+                                {provider.type} · {provider.model}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProviders(providers.filter(p => p.id !== provider.id));
+                                if (activeProviderId === provider.id && providers.length > 1) {
+                                  setActiveProviderId(providers.find(p => p.id !== provider.id)!.id);
+                                }
+                              }}
+                              className="p-2 text-outline-variant hover:text-tertiary transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                            {activeProviderId === provider.id ? (
+                              <div className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center">
+                                <Check size={18} />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full border-2 border-outline-variant/30" />
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="p-6 border-t border-outline-variant/10 flex justify-end gap-3 bg-surface-container-lowest">
+                    <button 
+                      onClick={() => setShowApiModal(false)}
+                      className="px-6 py-3 rounded-full font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="p-8 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-sans font-black text-2xl text-on-surface tracking-tight">Add Provider</h2>
+                      <p className="text-on-surface-variant text-sm mt-1">Configure a new AI provider for analysis.</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsAddingProvider(false)}
+                      className="p-2 hover:bg-surface-container rounded-full transition-colors"
+                    >
+                      <Plus size={24} className="rotate-45 text-on-surface-variant" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-on-surface-variant ml-1">Name</label>
+                      <input 
+                        value={newProvider.name}
+                        onChange={e => setNewProvider({ ...newProvider, name: e.target.value })}
+                        placeholder="My API Provider"
+                        className="w-full h-14 px-5 rounded-2xl bg-surface-container-low border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-on-surface-variant ml-1">Provider Type</label>
+                      <select 
+                        value={newProvider.type}
+                        onChange={e => {
+                          const type = e.target.value as ProviderType;
+                          let defaultModel = newProvider.model;
+                          let defaultBaseUrl = newProvider.baseUrl;
+                          if (type === 'Gemini') {
+                            defaultModel = 'gemini-3.1-flash-lite-preview';
+                            defaultBaseUrl = '';
+                          } else if (type === 'Moonshot') {
+                            defaultModel = 'kimi-k2.5';
+                            defaultBaseUrl = 'https://api.moonshot.cn/v1';
+                          } else if (type === 'OpenAI') {
+                            defaultModel = 'gpt-4o-mini';
+                            defaultBaseUrl = 'https://api.openai.com/v1';
+                          }
+                          setNewProvider({ ...newProvider, type, model: defaultModel, baseUrl: defaultBaseUrl });
+                        }}
+                        className="w-full h-14 px-5 rounded-2xl bg-surface-container-low border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all font-medium appearance-none"
+                      >
+                        <option value="Gemini">Gemini</option>
+                        <option value="Moonshot">Moonshot (Kimi)</option>
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Custom">Custom (OpenAI Compatible)</option>
+                      </select>
+                    </div>
+
+                    {newProvider.type !== 'Gemini' && (
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-on-surface-variant ml-1">API Base URL</label>
+                        <input 
+                          value={newProvider.baseUrl}
+                          onChange={e => setNewProvider({ ...newProvider, baseUrl: e.target.value })}
+                          placeholder="https://api.example.com/v1"
+                          className="w-full h-14 px-5 rounded-2xl bg-surface-container-low border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all font-medium"
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-on-surface-variant ml-1">API Key</label>
+                      <input 
+                        type="password"
+                        value={newProvider.apiKey}
+                        onChange={e => setNewProvider({ ...newProvider, apiKey: e.target.value })}
+                        placeholder="sk-..."
+                        className="w-full h-14 px-5 rounded-2xl bg-surface-container-low border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-on-surface-variant ml-1">Model Name</label>
+                      <input 
+                        value={newProvider.model}
+                        onChange={e => setNewProvider({ ...newProvider, model: e.target.value })}
+                        placeholder="gemini-3.1-flash-lite-preview"
+                        className="w-full h-14 px-5 rounded-2xl bg-surface-container-low border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all font-medium"
+                      />
                     </div>
                   </div>
 
-                  <div className="flex justify-center">
-                    <a className="inline-flex items-center gap-2 text-secondary font-bold hover:text-primary transition-colors text-sm" href="#">
-                      <Info size={16} />
-                      Where can I find my API key?
-                    </a>
-                  </div>
-
-                  <div className="pt-4">
+                  <div className="flex items-center justify-end gap-3 pt-4">
                     <button 
-                      onClick={() => setShowApiModal(false)}
-                      className="w-full h-16 rounded-full bg-gradient-to-br from-primary to-primary-container text-white font-sans font-bold text-lg shadow-[0_8px_24px_rgba(57,104,70,0.2)] hover:scale-[1.02] active:scale-95 transition-all duration-300"
+                      onClick={() => setIsAddingProvider(false)}
+                      className="px-6 py-3 rounded-full font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
                     >
-                      Save and Continue
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (!newProvider.name || !newProvider.apiKey) {
+                          alert('Please fill in Name and API Key');
+                          return;
+                        }
+                        const id = Math.random().toString(36).substr(2, 9);
+                        const provider: ApiProvider = {
+                          id,
+                          name: newProvider.name!,
+                          type: newProvider.type!,
+                          baseUrl: newProvider.baseUrl || '',
+                          apiKey: newProvider.apiKey!,
+                          model: newProvider.model || '',
+                          isActive: false
+                        };
+                        setProviders([...providers, provider]);
+                        setActiveProviderId(id);
+                        setIsAddingProvider(false);
+                      }}
+                      className="px-8 py-3 rounded-full bg-primary text-on-primary font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95"
+                    >
+                      Add Provider
                     </button>
                   </div>
                 </div>
-
-                <div className="mt-12 flex items-center gap-2 text-outline-variant text-[10px] tracking-widest uppercase font-black">
-                  <ShieldCheck size={14} />
-                  End-to-End Encryption Enabled
-                </div>
-              </div>
+              )}
             </motion.main>
           </div>
         )}

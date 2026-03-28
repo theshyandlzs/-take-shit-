@@ -32,3 +32,15 @@ export interface AnalysisResult {
     status: string;
   }[];
 }
+
+export type ProviderType = 'Gemini' | 'Moonshot' | 'OpenAI' | 'Custom';
+
+export interface ApiProvider {
+  id: string;
+  name: string;
+  type: ProviderType;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  isActive: boolean;
+}
