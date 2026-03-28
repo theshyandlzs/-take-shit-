@@ -1045,9 +1045,10 @@ export default function App() {
       const result = await analyzeStoolImage(image, activeProvider);
       setAnalysisResult(result);
       setScreen('analysis');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Analysis failed:", error);
-      alert("AI 分析失败，请检查网络或 API 设置。");
+      const errorMessage = error?.message || "未知错误";
+      alert(`AI 分析失败: ${errorMessage}\n\n请检查 API Key 是否正确、模型是否支持视觉功能，或网络连接是否正常。`);
     }
   };
 

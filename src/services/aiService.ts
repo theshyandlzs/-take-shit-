@@ -82,32 +82,29 @@ export async function analyzeStoolImage(base64Image: string, provider: ApiProvid
     return JSON.parse(response.text || "{}");
   } else {
     // OpenAI, Moonshot, or Custom (OpenAI-compatible)
-    const client = new OpenAI({
-      apiKey: provider.apiKey,
-      baseURL: provider.baseUrl,
-      dangerouslyAllowBrowser: true
-    });
+    // Use backend proxy to avoid CORS issues
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          base64Image,
+          prompt,
+        }),
+      });
 
-    const response = await client.chat.completions.create({
-      model: provider.model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: base64Image.startsWith('data:') ? base64Image : `data:image/jpeg;base64,${base64Image}`
-              }
-            }
-          ]
-        }
-      ],
-      response_format: { type: "json_object" }
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
 
-    const content = response.choices[0].message.content;
-    return JSON.parse(content || "{}");
+      return await response.json();
+    } catch (error: any) {
+      console.error("AI Proxy Error:", error);
+      throw error;
+    }
   }
 }
