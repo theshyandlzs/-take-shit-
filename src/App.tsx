@@ -979,15 +979,7 @@ const AnalysisScreen = ({ result, onFinish }: { result: AnalysisResult | null, o
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
-  const [showUrlWarning, setShowUrlWarning] = useState(false);
 
-  useEffect(() => {
-    // Check if we are on the recommended dev URL
-    const isDevUrl = window.location.hostname.includes('run.app') || window.location.hostname.includes('localhost');
-    if (!isDevUrl && window.location.hostname.includes('workers.dev')) {
-      setShowUrlWarning(true);
-    }
-  }, []);
   const [records, setRecords] = useState<StoolRecord[]>(() => {
     const saved = localStorage.getItem('gut_health_records');
     return saved ? JSON.parse(saved) : [];
@@ -1092,17 +1084,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col font-body selection:bg-primary-container">
-      {showUrlWarning && (
-        <div className="bg-tertiary text-on-tertiary px-6 py-3 text-xs font-bold flex items-center justify-between gap-4 sticky top-0 z-[100] shadow-md">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={14} />
-            <span>检测到您正在使用部署后的 URL。由于安全限制，非 Gemini 提供商可能无法在此环境下工作。请使用预览 URL 进行测试。</span>
-          </div>
-          <button onClick={() => setShowUrlWarning(false)} className="opacity-70 hover:opacity-100">
-            <Plus size={16} className="rotate-45" />
-          </button>
-        </div>
-      )}
       <Header 
         title={getTitle()} 
         showBack={screen === 'record' || screen === 'analysis'} 
