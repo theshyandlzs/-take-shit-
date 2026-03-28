@@ -1006,6 +1006,7 @@ export default function App() {
   });
 
   const [isAddingProvider, setIsAddingProvider] = useState(false);
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [newProvider, setNewProvider] = useState<Partial<ApiProvider>>({
     type: 'Gemini',
     name: '',
@@ -1137,6 +1138,7 @@ export default function App() {
                           apiKey: '',
                           model: 'gemini-3.1-flash-lite-preview'
                         });
+                        setEditingProviderId(null);
                         setIsAddingProvider(true);
                       }}
                       className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-full font-bold text-sm shadow-sm hover:bg-primary/90 transition-colors"
@@ -1164,13 +1166,14 @@ export default function App() {
                                 let defaultModel = 'gemini-3.1-flash-lite-preview';
                                 let defaultBaseUrl = '';
                                 if (type === 'Moonshot') {
-                                  defaultModel = 'kimi-k2.5';
+                                  defaultModel = 'moonshot-v1-8k-vision';
                                   defaultBaseUrl = 'https://api.moonshot.cn/v1';
                                 } else if (type === 'OpenAI') {
                                   defaultModel = 'gpt-4o-mini';
                                   defaultBaseUrl = 'https://api.openai.com/v1';
                                 }
                                 setNewProvider({ type: type as ProviderType, name: `${type} Provider`, model: defaultModel, baseUrl: defaultBaseUrl, apiKey: '' });
+                                setEditingProviderId(null);
                                 setIsAddingProvider(true);
                               }}
                               className="px-3 py-1.5 rounded-full border border-outline-variant text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors flex items-center gap-1"
@@ -1214,12 +1217,25 @@ export default function App() {
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setNewProvider({ ...provider });
+                                setEditingProviderId(provider.id);
+                                setIsAddingProvider(true);
+                              }}
+                              className="p-2 text-outline-variant hover:text-primary transition-colors"
+                              title="Edit"
+                            >
+                              <Settings size={18} />
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setProviders(providers.filter(p => p.id !== provider.id));
                                 if (activeProviderId === provider.id && providers.length > 1) {
                                   setActiveProviderId(providers.find(p => p.id !== provider.id)!.id);
                                 }
                               }}
                               className="p-2 text-outline-variant hover:text-tertiary transition-colors"
+                              title="Delete"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -1249,8 +1265,12 @@ export default function App() {
                 <div className="p-8 space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="font-sans font-black text-2xl text-on-surface tracking-tight">Add Provider</h2>
-                      <p className="text-on-surface-variant text-sm mt-1">Configure a new AI provider for analysis.</p>
+                      <h2 className="font-sans font-black text-2xl text-on-surface tracking-tight">
+                        {editingProviderId ? 'Edit Provider' : 'Add Provider'}
+                      </h2>
+                      <p className="text-on-surface-variant text-sm mt-1">
+                        {editingProviderId ? 'Update your provider configuration.' : 'Configure a new AI provider for analysis.'}
+                      </p>
                     </div>
                     <button 
                       onClick={() => setIsAddingProvider(false)}
@@ -1283,7 +1303,7 @@ export default function App() {
                             defaultModel = 'gemini-3.1-flash-lite-preview';
                             defaultBaseUrl = '';
                           } else if (type === 'Moonshot') {
-                            defaultModel = 'kimi-k2.5';
+                            defaultModel = 'moonshot-v1-8k-vision';
                             defaultBaseUrl = 'https://api.moonshot.cn/v1';
                           } else if (type === 'OpenAI') {
                             defaultModel = 'gpt-4o-mini';
@@ -1347,23 +1367,28 @@ export default function App() {
                           alert('Please fill in Name and API Key');
                           return;
                         }
-                        const id = Math.random().toString(36).substr(2, 9);
-                        const provider: ApiProvider = {
-                          id,
-                          name: newProvider.name!,
-                          type: newProvider.type!,
-                          baseUrl: newProvider.baseUrl || '',
-                          apiKey: newProvider.apiKey!,
-                          model: newProvider.model || '',
-                          isActive: false
-                        };
-                        setProviders([...providers, provider]);
-                        setActiveProviderId(id);
+                        
+                        if (editingProviderId) {
+                          setProviders(providers.map(p => p.id === editingProviderId ? { ...p, ...newProvider } as ApiProvider : p));
+                        } else {
+                          const id = Math.random().toString(36).substr(2, 9);
+                          const provider: ApiProvider = {
+                            id,
+                            name: newProvider.name!,
+                            type: newProvider.type!,
+                            baseUrl: newProvider.baseUrl || '',
+                            apiKey: newProvider.apiKey!,
+                            model: newProvider.model || '',
+                            isActive: false
+                          };
+                          setProviders([...providers, provider]);
+                          setActiveProviderId(id);
+                        }
                         setIsAddingProvider(false);
                       }}
                       className="px-8 py-3 rounded-full bg-primary text-on-primary font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95"
                     >
-                      Add Provider
+                      {editingProviderId ? 'Update Provider' : 'Add Provider'}
                     </button>
                   </div>
                 </div>

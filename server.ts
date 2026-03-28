@@ -11,16 +11,20 @@ async function startServer() {
 
   // API Proxy for AI Analysis to avoid CORS issues
   app.post("/api/analyze", async (req, res) => {
+    console.log("Received AI analysis request for provider:", req.body?.provider?.type);
     const { provider, base64Image, prompt } = req.body;
 
     if (!provider || !base64Image || !prompt) {
+      console.error("Missing parameters in request body");
       return res.status(400).json({ error: "Missing parameters" });
     }
 
     try {
+      console.log(`Calling ${provider.type} API at ${provider.baseUrl || 'default'} with model ${provider.model}`);
       const client = new OpenAI({
         apiKey: provider.apiKey,
-        baseURL: provider.baseUrl,
+        baseURL: provider.baseUrl || undefined,
+        timeout: 60000, // 60 seconds timeout
       });
 
       const response = await client.chat.completions.create({
@@ -44,18 +48,35 @@ async function startServer() {
       });
 
       const content = response.choices[0].message.content;
-      if (!content) throw new Error("AI 返回内容为空");
+      console.log("AI Response received, content length:", content?.length || 0);
+      
+      if (!content) {
+        console.error("AI returned empty content");
+        throw new Error("AI 返回内容为空");
+      }
       
       // Extract JSON from markdown if needed
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? jsonMatch[0] : content;
       
-      res.json(JSON.parse(jsonStr));
+      try {
+        const parsed = JSON.parse(jsonStr);
+        res.json(parsed);
+      } catch (parseError) {
+        console.error("Failed to parse AI response as JSON:", content);
+        res.status(500).json({ 
+          error: "AI 返回格式错误，无法解析为 JSON",
+          rawContent: content
+        });
+      }
     } catch (error: any) {
       console.error("Server AI Proxy Error:", error);
+      const errorMessage = error.message || "AI 分析失败";
+      const errorDetails = error.response?.data || error.stack || error;
+      
       res.status(500).json({ 
-        error: error.message || "AI 分析失败",
-        details: error.response?.data || error
+        error: errorMessage,
+        details: typeof errorDetails === 'object' ? JSON.stringify(errorDetails) : errorDetails
       });
     }
   });

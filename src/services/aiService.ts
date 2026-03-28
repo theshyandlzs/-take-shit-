@@ -97,11 +97,26 @@ export async function analyzeStoolImage(base64Image: string, provider: ApiProvid
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        const text = await response.text();
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return await response.json();
+      const text = await response.text();
+      if (!text) throw new Error("服务器返回内容为空");
+      
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse server response:", text);
+        throw new Error("服务器返回格式错误，无法解析为 JSON");
+      }
     } catch (error: any) {
       console.error("AI Proxy Error:", error);
       throw error;
