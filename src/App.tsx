@@ -1167,7 +1167,7 @@ export default function App() {
                                 let defaultModel = 'gemini-3.1-flash-lite-preview';
                                 let defaultBaseUrl = '';
                                 if (type === 'Moonshot') {
-                                  defaultModel = 'kimi-k2-turbo-preview';
+                                  defaultModel = 'moonshot-v1-8k-vision-preview';
                                   defaultBaseUrl = 'https://api.moonshot.cn/v1';
                                 } else if (type === 'OpenAI') {
                                   defaultModel = 'gpt-4o-mini';
@@ -1304,7 +1304,7 @@ export default function App() {
                             defaultModel = 'gemini-3.1-flash-lite-preview';
                             defaultBaseUrl = '';
                           } else if (type === 'Moonshot') {
-                            defaultModel = 'kimi-k2-turbo-preview';
+                            defaultModel = 'moonshot-v1-8k-vision-preview';
                             defaultBaseUrl = 'https://api.moonshot.cn/v1';
                           } else if (type === 'OpenAI') {
                             defaultModel = 'gpt-4o-mini';
