@@ -7,4 +7,4 @@ directory = "./dist"
 binding = "ASSETS"
 
 [build]
-command = "npm run build"
+command = "npm ci && npm run build"
