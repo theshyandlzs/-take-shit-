@@ -1,4 +1,4 @@
-name = "react-example"
+name = "take-shit"
 main = "./worker.ts"
 compatibility_date = "2026-03-28"
 
